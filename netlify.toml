@@ -1,0 +1,4 @@
+# Netlify: connect the repository and it deploys the website as is (no build step; the pages are prebuilt).
+[build]
+  publish = "web/site/dist"
+  command = ""

@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0A0D18">
+  <meta name="description" content="Quantum Green Wave — ambulance signal preemption as a 96-qubit QUBO, solved by QAOA in 12-qubit windows and checked in a traffic simulator.">
+  <title>Quantum Green Wave</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A0D18'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%236CCBFF' stroke-width='2'/%3E%3Cpath d='M16 16 L22 9' stroke='%23FF9150' stroke-width='2.5' stroke-linecap='round'/%3E%3Ccircle cx='22' cy='9' r='2.6' fill='%23FF9150'/%3E%3C/svg%3E">
+  <meta property="og:title" content="Quantum Green Wave · Team Voyager">
+  <meta property="og:description" content="Ambulance signal preemption as a 96-qubit QUBO, solved by QAOA in 12-qubit windows and checked in the SUMO traffic simulator.">
+  <meta property="og:type" content="website">
+  <script>document.documentElement.classList.add('js');</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #0A0D18;
+      --panel: #0F1426;
+      --panel-2: #141B32;
+      --line: rgba(169, 179, 199, .18);
+      --line-strong: rgba(108, 203, 255, .38);
+      --paper: #E9EDF5;
+      --muted: #A9B3C7;
+      --cyan: #6CCBFF;
+      --cyan-dim: #2E7195;
+      --orange: #FF9150;
+      --green: #8BE3B2;
+      --red: #FF6A7A;
+      --mono: "JetBrains Mono", monospace;
+      --sans: "IBM Plex Sans", sans-serif;
+      --display: "Space Grotesk", sans-serif;
+      --max: 1180px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--paper);
+      background: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: -3;
+      opacity: .75;
+      background:
+        radial-gradient(circle at 75% 10%, rgba(108, 203, 255, .11), transparent 24rem),
+        radial-gradient(circle at 8% 48%, rgba(255, 145, 80, .055), transparent 22rem),
+        linear-gradient(135deg, transparent 0 48%, rgba(108, 203, 255, .025) 48.2%, transparent 48.4% 100%);
+    }
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+      opacity: .04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 120 120' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.45'/%3E%3C/svg%3E");
+      mix-blend-mode: screen;
+    }
+    ::selection { background: var(--cyan); color: var(--ink); }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; }
+    .wrap { width: min(calc(100% - 48px), var(--max)); margin-inline: auto; }
+    .mono { font-family: var(--mono); }
+    .eyebrow {
+      color: var(--cyan);
+      font: 600 .72rem/1.2 var(--mono);
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .section {
+      position: relative;
+      padding: 122px 0;
+      border-top: 1px solid rgba(169, 179, 199, .1);
+    }
+    .section--tight { padding: 96px 0; }
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(220px, .7fr) minmax(300px, 1fr);
+      gap: 60px;
+      align-items: end;
+      margin-bottom: 54px;
+    }
+    h1, h2, h3, p { margin-top: 0; }
+    h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -.045em; }
+    h1 {
+      max-width: 760px;
+      margin-bottom: 28px;
+      font-size: clamp(4rem, 9.8vw, 8.6rem);
+      line-height: .87;
+    }
+    h2 {
+      margin-bottom: 0;
+      font-size: clamp(2.4rem, 5vw, 4.8rem);
+      line-height: .96;
+    }
+    h3 { font-size: 1.25rem; line-height: 1.1; }
+    .lede { color: var(--muted); font-size: clamp(1.1rem, 2vw, 1.4rem); line-height: 1.45; max-width: 650px; }
+    .small { color: var(--muted); font-size: .92rem; }
+    .rule { height: 1px; background: var(--line); }
+
+    /* Navigation */
+    .topbar {
+      position: fixed;
+      z-index: 10;
+      top: 0;
+      width: 100%;
+      border-bottom: 1px solid rgba(169, 179, 199, .12);
+      background: rgba(10, 13, 24, .76);
+      backdrop-filter: blur(16px);
+    }
+    .topbar__inner { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+    .wordmark { display: inline-flex; align-items: center; gap: 12px; font: 600 .78rem var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .mark { position: relative; width: 25px; height: 20px; display: inline-block; }
+    .mark::before, .mark::after { content: ""; position: absolute; border: 1px solid var(--cyan); border-left-color: transparent; border-radius: 50%; transform: rotate(28deg); }
+    .mark::before { inset: 2px 0 2px 3px; }
+    .mark::after { inset: 5px 5px 5px 0; border-color: var(--orange); border-right-color: transparent; transform: rotate(-28deg); }
+    .topbar nav { display: flex; align-items: center; gap: 21px; overflow-x: auto; scrollbar-width: none; }
+    .topbar nav::-webkit-scrollbar { display: none; }
+    .topbar nav a { flex: none; color: var(--muted); font: 500 .66rem var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .topbar nav a:hover { color: var(--cyan); }
+
+    /* Hero */
+    .hero { min-height: 820px; padding: 168px 0 100px; position: relative; overflow: hidden; }
+    #particles { position: absolute; inset: 0; width: 100%; height: 100%; opacity: .62; pointer-events: none; }
+    .hero__grid { position: relative; display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(350px, .88fr); gap: 50px; align-items: center; }
+    .hero__copy { position: relative; z-index: 1; }
+    .hero__copy .eyebrow { margin-bottom: 25px; }
+    .hero__copy .lede { margin-bottom: 34px; }
+    .hero__tagline { display: flex; flex-wrap: wrap; gap: 10px 24px; color: var(--muted); font: .71rem var(--mono); text-transform: uppercase; letter-spacing: .11em; }
+    .hero__tagline span { display: inline-flex; align-items: center; gap: 7px; }
+    .hero__tagline span::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
+    .hero__tagline span:last-child::before { background: var(--orange); box-shadow: 0 0 14px var(--orange); }
+    .bloch-wrap { position: relative; min-height: 475px; display: grid; place-items: center; }
+    .bloch-wrap::before { content: ""; position: absolute; inset: 15% 4%; border: 1px solid rgba(108, 203, 255, .12); border-radius: 50%; transform: rotate(-18deg) skewX(-15deg); }
+    .bloch-wrap::after { content: ""; position: absolute; inset: 8% 18%; border: 1px solid rgba(108, 203, 255, .08); border-radius: 50%; transform: rotate(34deg) skewX(10deg); }
+    .bloch { width: min(100%, 460px); overflow: visible; filter: drop-shadow(0 0 24px rgba(108, 203, 255, .13)); }
+    .sphere-orbit { transform-origin: 220px 220px; animation: spin 18s linear infinite; }
+    .sphere-orbit--slow { animation-duration: 26s; animation-direction: reverse; }
+    .sphere-line { fill: none; stroke: var(--cyan); stroke-opacity: .5; stroke-width: 1; stroke-dasharray: 4 7; }
+    .sphere-axis { stroke: rgba(233, 237, 245, .34); stroke-width: 1; }
+    .sphere-shell { fill: rgba(15, 20, 38, .3); stroke: rgba(108, 203, 255, .62); stroke-width: 1.2; }
+    .sphere-vector { stroke: var(--orange); stroke-width: 2.2; filter: drop-shadow(0 0 5px rgba(255, 145, 80, .8)); }
+    .sphere-dot { fill: var(--orange); filter: drop-shadow(0 0 7px rgba(255, 145, 80, .85)); }
+    .ket { position: absolute; font: 600 .76rem var(--mono); letter-spacing: .02em; }
+    .ket--zero { top: 9%; left: 50%; transform: translateX(14px); color: var(--cyan); }
+    .ket--one { bottom: 9%; left: 50%; transform: translateX(14px); color: var(--orange); }
+    .axis-note { position: absolute; right: 4%; bottom: 4%; max-width: 180px; padding-left: 13px; border-left: 1px solid var(--orange); color: var(--muted); font: .68rem/1.5 var(--mono); }
+    .axis-note strong { color: var(--paper); font-weight: 500; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Shared cards */
+    .callout { padding: 25px 29px; border: 1px solid var(--line-strong); background: linear-gradient(110deg, rgba(108, 203, 255, .09), rgba(108, 203, 255, .02)); }
+    .callout p:last-child { margin-bottom: 0; }
+    .callout strong { color: var(--paper); font-weight: 500; }
+    .card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+    .card { position: relative; min-height: 205px; padding: 27px; border: 1px solid var(--line); background: rgba(15, 20, 38, .7); overflow: hidden; }
+    .card::after { content: ""; position: absolute; right: -30px; bottom: -40px; width: 130px; height: 130px; border: 1px solid rgba(108, 203, 255, .18); border-radius: 50%; }
+    .card h3 { margin-bottom: 14px; }
+    .card p { color: var(--muted); margin-bottom: 0; max-width: 270px; }
+    .card__index { display: block; margin-bottom: 35px; color: var(--cyan); font: .72rem var(--mono); }
+
+    /* Encoding */
+    .encoding-layout { display: grid; grid-template-columns: .8fr 1.2fr; gap: 16px; align-items: stretch; }
+    .equation-panel, .grid-panel, .term-table-wrap, .dispatch-panel, .loop-panel, .result-panel, .hardware-panel, .table-panel, .sumo-panel, .claims-panel { border: 1px solid var(--line); background: rgba(15, 20, 38, .66); }
+    .equation-panel { padding: 33px; display: flex; flex-direction: column; justify-content: space-between; min-height: 352px; }
+    .equation { margin: 34px 0; color: var(--cyan); font: 500 clamp(1.45rem, 3vw, 2.2rem)/1.35 var(--mono); letter-spacing: -.08em; }
+    .equation span { color: var(--paper); }
+    .equation-note { color: var(--muted); font-size: .92rem; }
+    .fact-row { display: flex; align-items: flex-end; justify-content: space-between; padding-top: 18px; border-top: 1px solid var(--line); }
+    .fact-number { color: var(--paper); font: 500 2.8rem/.9 var(--mono); letter-spacing: -.1em; }
+    .fact-label { color: var(--muted); font: .68rem/1.4 var(--mono); text-align: right; text-transform: uppercase; letter-spacing: .08em; }
+    .grid-panel { padding: 33px; }
+    .grid-panel__top { display: flex; justify-content: space-between; gap: 20px; align-items: start; margin-bottom: 25px; }
+    .grid-panel__top h3 { margin-bottom: 7px; }
+    .grid-panel__top p { color: var(--muted); margin-bottom: 0; font-size: .88rem; }
+    .legend { display: flex; flex-direction: column; gap: 7px; white-space: nowrap; color: var(--muted); font: .65rem var(--mono); }
+    .legend span { display: flex; align-items: center; gap: 8px; }
+    .legend i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+    .legend .is-one { background: var(--orange); box-shadow: 0 0 10px rgba(255, 145, 80, .7); }
+    .legend .is-zero { background: var(--cyan); box-shadow: 0 0 10px rgba(108, 203, 255, .7); }
+    .light-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .light { position: relative; aspect-ratio: 1; min-height: 76px; border: 1px solid var(--line); background: rgba(10, 13, 24, .8); color: var(--paper); cursor: pointer; transition: border-color .25s ease, background .25s ease, transform .25s ease; }
+    .light:hover, .light:focus-visible { transform: translateY(-3px); border-color: var(--cyan); outline: none; }
+    .light::before { content: ""; position: absolute; left: 50%; top: 24%; width: 22px; height: 22px; transform: translateX(-50%); border-radius: 50%; background: var(--cyan); box-shadow: 0 0 17px rgba(108, 203, 255, .75); transition: background .25s ease, box-shadow .25s ease; }
+    .light[data-state="1"]::before { background: var(--orange); box-shadow: 0 0 17px rgba(255, 145, 80, .75); }
+    .light__ket { position: absolute; left: 0; right: 0; bottom: 18%; font: 500 .78rem var(--mono); }
+    .light__hint { position: absolute; left: 0; right: 0; bottom: 7%; color: var(--muted); font: .52rem var(--mono); opacity: .75; }
+
+    .slot-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .slot-bar button { padding: 7px 11px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: .7rem var(--mono); cursor: pointer; }
+    .slot-bar button[aria-pressed="true"] { border-color: var(--cyan); color: var(--paper); background: rgba(108, 203, 255, .12); }
+    .light__name { position: absolute; left: 8px; top: 6px; color: var(--muted); font: .58rem var(--mono); }
+    .light__hint.is-met { color: var(--green); opacity: 1; }
+    .light__hint.is-missed { color: var(--red); opacity: 1; }
+    .light.has-request { border-color: rgba(255, 145, 80, .55); }
+    .energy { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 14px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+    .energy__value { font: 500 2rem/1 var(--mono); letter-spacing: -.06em; }
+    .energy__note { color: var(--muted); font: .72rem/1.5 var(--mono); }
+    .energy__note.is-ground { color: var(--green); }
+    .reset { padding: 8px 12px; border: 1px solid var(--line-strong); background: transparent; color: var(--paper); font: .7rem var(--mono); cursor: pointer; }
+    .reset:hover, .slot-bar button:hover { border-color: var(--cyan); }
+
+    /* Hamiltonian */
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 20px 24px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); font: 600 .66rem var(--mono); letter-spacing: .11em; text-transform: uppercase; }
+    td { color: var(--paper); font-size: .92rem; }
+    td:first-child { width: 22%; color: var(--cyan); font-weight: 500; }
+    td:last-child { color: var(--muted); font-family: var(--mono); font-size: .82rem; }
+    tr:last-child td { border-bottom: 0; }
+    .mapping { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; margin-top: 38px; color: var(--muted); font: 500 .82rem var(--mono); }
+    .mapping b { display: inline-flex; align-items: center; min-height: 46px; padding: 0 15px; border: 1px solid var(--line-strong); color: var(--paper); background: rgba(108, 203, 255, .07); font-weight: 500; }
+    .mapping i { color: var(--orange); font-style: normal; font-size: 1.2rem; }
+
+    /* Dispatch / loop */
+    .dispatch-layout { display: grid; grid-template-columns: 1.16fr .84fr; gap: 16px; }
+    .dispatch-panel { padding: 34px; position: relative; overflow: hidden; }
+    .dispatch-panel h3 { margin-bottom: 8px; }
+    .dispatch-panel p { color: var(--muted); max-width: 590px; }
+    .dmatrix { display: grid; grid-template-columns: 74px repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 26px; font-family: var(--mono); }
+    .dmatrix__h { color: var(--muted); font-size: .66rem; text-align: center; line-height: 1.3; padding-bottom: 4px; }
+    .dmatrix__r { color: var(--muted); font-size: .7rem; display: flex; align-items: center; }
+    .dmatrix__c { position: relative; padding: 13px 4px; text-align: center; font-size: .82rem; color: var(--paper); border: 1px solid var(--line); background: rgba(108, 203, 255, var(--a, .05)); }
+    .dmatrix__c.is-opt { border-color: var(--orange); box-shadow: inset 0 0 0 1px var(--orange); }
+    .dmatrix__c.is-opt::after { content: "|1⟩"; position: absolute; top: 2px; right: 4px; color: var(--orange); font-size: .55rem; }
+    .dmatrix-note { margin: 16px 0 0; color: var(--muted); font-size: .82rem; }
+    .dispatch-stat { padding: 34px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--line-strong); background: linear-gradient(140deg, rgba(255, 145, 80, .09), rgba(108, 203, 255, .04)); }
+    .dispatch-stat__big { color: var(--orange); font: 500 clamp(4rem, 8vw, 6.7rem)/.85 var(--mono); letter-spacing: -.12em; }
+    .dispatch-stat p span, .dispatch-stat .small span { color: inherit; }
+    .dispatch-stat p { color: var(--paper); margin: 18px 0 0; }
+    .dispatch-stat .small { margin-bottom: 0; }
+    .loop-wrap { position: relative; }
+    .loop-panel { padding: 34px; overflow: hidden; }
+    .loop-line { position: absolute; top: 82px; left: 11%; right: 11%; height: 1px; background: linear-gradient(90deg, var(--cyan), var(--orange), var(--cyan)); opacity: .4; }
+    .loop-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 45px; }
+    .loop-step { position: relative; padding: 22px 18px; min-height: 173px; border: 1px solid var(--line); background: rgba(10, 13, 24, .72); transition: border-color .35s, background .35s, transform .35s; }
+    .loop-step::before { content: ""; position: absolute; top: -5px; left: 20px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--cyan); background: var(--ink); }
+    .loop-step.is-active { border-color: var(--cyan); background: rgba(108, 203, 255, .1); transform: translateY(-4px); }
+    .loop-step.is-active::before { background: var(--orange); border-color: var(--orange); box-shadow: 0 0 13px rgba(255, 145, 80, .75); }
+    .loop-step__number { color: var(--cyan); font: .65rem var(--mono); }
+    .loop-step h3 { margin: 20px 0 10px; font-size: 1rem; letter-spacing: -.02em; }
+    .loop-step p { color: var(--muted); font-size: .82rem; line-height: 1.45; margin-bottom: 0; }
+    .loop-foot { display: flex; justify-content: space-between; align-items: end; gap: 20px; margin-top: 28px; color: var(--muted); font: .74rem var(--mono); }
+    .loop-foot strong { color: var(--paper); font-size: 1.1rem; font-weight: 500; }
+
+    /* Bars */
+    .result-panel { padding: 34px; }
+    .result-panel__intro { display: flex; align-items: end; justify-content: space-between; gap: 28px; margin-bottom: 30px; }
+    .result-panel__intro h3 { margin-bottom: 8px; }
+    .result-panel__intro p { color: var(--muted); margin-bottom: 0; font-size: .9rem; }
+    .best-note { color: var(--cyan); font: .68rem var(--mono); text-align: right; text-transform: uppercase; letter-spacing: .08em; }
+    .bar-list { display: grid; gap: 16px; }
+    .bar-row { display: grid; grid-template-columns: 170px 1fr 85px; gap: 16px; align-items: center; }
+    .bar-label { color: var(--muted); font-size: .84rem; }
+    .bar-track { height: 10px; background: rgba(169, 179, 199, .12); overflow: hidden; }
+    .bar-fill { width: 0; height: 100%; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); transition: width 1.3s cubic-bezier(.2,.8,.2,1); }
+    .bar-row:nth-child(5) .bar-fill { background: linear-gradient(90deg, #C46F40, var(--orange)); }
+    .bar-value { color: var(--paper); font: 500 .78rem var(--mono); text-align: right; }
+    .is-visible .bar-fill, html:not(.js) .bar-fill { width: var(--bar); }
+
+    /* Tables */
+    .city-layout { display: grid; grid-template-columns: .7fr 1.3fr; gap: 40px; align-items: start; }
+    .city-layout > div:first-child p { color: var(--muted); max-width: 300px; }
+    .optimum { margin-top: 31px; padding: 20px; border-left: 2px solid var(--cyan); background: rgba(108, 203, 255, .055); }
+    .optimum strong { display: block; margin-bottom: 4px; color: var(--cyan); font: 500 2.6rem/.95 var(--mono); letter-spacing: -.1em; }
+    .optimum span { color: var(--muted); font: .67rem var(--mono); text-transform: uppercase; letter-spacing: .09em; }
+    .table-panel { overflow: hidden; }
+    .table-panel td:first-child { width: auto; color: var(--paper); }
+    .table-panel td:last-child { color: var(--cyan); font-size: .91rem; }
+    .table-panel tr:nth-child(n+4) td:last-child { color: var(--muted); }
+    .hardware-layout { display: grid; grid-template-columns: .7fr 1.3fr; gap: 40px; align-items: start; }
+    .hardware-layout > div:first-child p { color: var(--muted); max-width: 310px; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; margin-top: 28px; color: var(--paper); font: .67rem var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+    .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 13px var(--cyan); }
+    .hardware-table td:first-child { width: 23%; }
+    .hardware-table td:nth-child(2), .hardware-table td:nth-child(3), .hardware-table td:nth-child(4) { font-family: var(--mono); }
+    .hardware-table td:nth-child(2) { color: var(--paper); }
+    .hardware-table td:nth-child(3) { color: var(--cyan); }
+    .hardware-table td:nth-child(4) { color: var(--orange); }
+
+    /* SUMO */
+    .sumo-panel { padding: 34px; }
+    .sumo-panel__head { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 25px; }
+    .sumo-panel__head h3 { margin-bottom: 7px; }
+    .sumo-panel__head p { margin-bottom: 0; color: var(--muted); font-size: .9rem; }
+    .sumo-table td:first-child { color: var(--paper); width: 16%; }
+    .sumo-table td:nth-child(2) { color: var(--orange); }
+    .sumo-table td:nth-child(3) { color: var(--muted); font-family: var(--mono); }
+    .outcome-win { color: var(--green) !important; }
+    .outcome-loss { color: var(--red) !important; }
+    .outcome-tie { color: var(--muted) !important; }
+    .sumo-table td:nth-child(4) { color: var(--cyan); }
+    .replay { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 16px; margin-bottom: 16px; }
+    .replay__map { border: 1px solid var(--line); background: rgba(10, 13, 24, .8); padding: 14px; }
+    .replay__map svg { display: block; width: 100%; height: auto; }
+    .replay__side { border: 1px solid var(--line); background: rgba(15, 20, 38, .66); padding: 30px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+    .replay__side h3 { margin: 0; }
+    .replay__side p { margin: 0; color: var(--muted); font-size: .88rem; }
+    .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+    .seg button { padding: 8px 12px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: .7rem var(--mono); cursor: pointer; }
+    .seg button[aria-pressed="true"] { border-color: var(--cyan); color: var(--paper); background: rgba(108, 203, 255, .12); }
+    .seg button:hover { border-color: var(--cyan); }
+    .replay__ctrl { display: flex; align-items: center; gap: 12px; }
+    .replay__ctrl input { flex: 1; min-width: 0; accent-color: var(--orange); }
+    .play-btn { min-width: 78px; padding: 9px 14px; border: 0; background: var(--orange); color: var(--ink); font: 600 .74rem var(--mono); cursor: pointer; }
+    .replay__clock { min-width: 54px; text-align: right; color: var(--paper); font: .78rem var(--mono); }
+    .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .kpi { border-top: 1px solid var(--line-strong); padding-top: 10px; }
+    .kpi b { display: block; font: 500 1.5rem/1.1 var(--mono); letter-spacing: -.04em; color: var(--paper); }
+    .kpi span { color: var(--muted); font-size: .72rem; }
+    .replay-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--muted); font: .66rem var(--mono); }
+    .replay-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+    .sumo-caption { margin: 24px 0 0; color: var(--paper); font: 500 .78rem var(--mono); }
+    .sumo-caption span { color: var(--orange); }
+
+    /* Robustness / claims */
+    .robust { display: grid; grid-template-columns: .78fr 1.22fr; gap: 45px; align-items: center; }
+    .robust p { color: var(--muted); max-width: 350px; }
+    .robust-stat { padding: 36px 42px; border: 1px solid var(--line-strong); background: rgba(15, 20, 38, .72); }
+    .robust-numbers { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+    .robust-number { color: var(--paper); font: 500 clamp(2.8rem, 6vw, 5.5rem)/.9 var(--mono); letter-spacing: -.12em; }
+    .robust-number small { display: block; margin-top: 10px; color: var(--muted); font: .65rem var(--mono); letter-spacing: .02em; }
+    .robust-arrow { color: var(--orange); font: 2rem var(--mono); }
+    .drop { display: block; margin-top: 23px; color: var(--orange); font: 500 .9rem var(--mono); }
+    .claims-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .claims-panel { padding: 33px; }
+    .claims-panel h3 { display: flex; align-items: center; gap: 10px; margin-bottom: 19px; }
+    .claims-panel h3::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 11px var(--cyan); }
+    .claims-panel--not h3::before { background: var(--orange); box-shadow: 0 0 11px var(--orange); }
+    .claims-panel p { color: var(--muted); margin-bottom: 0; }
+    .claims-panel--not { background: linear-gradient(140deg, rgba(255, 145, 80, .07), rgba(15, 20, 38, .66)); }
+
+    /* Footer */
+    footer { padding: 75px 0 34px; border-top: 1px solid rgba(169, 179, 199, .1); }
+    .footer-top { display: flex; justify-content: space-between; gap: 30px; align-items: end; padding-bottom: 58px; }
+    .footer-top h2 { max-width: 680px; font-size: clamp(2.2rem, 5.6vw, 5.2rem); }
+    .footer-mark { color: var(--orange); font: 500 .68rem var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+    .footer-bottom { display: flex; justify-content: space-between; gap: 20px; padding-top: 18px; color: var(--muted); font: .67rem var(--mono); }
+
+    /* Reveal */
+    /* hidden only when JS is running, so the page is never blank without it */
+    .js .reveal { opacity: 0; transform: translateY(20px); transition: opacity .8s ease, transform .8s ease; }
+    .js .reveal.is-visible { opacity: 1; transform: translateY(0); }
+    .delay-1 { transition-delay: .1s; }
+    .delay-2 { transition-delay: .18s; }
+    .delay-3 { transition-delay: .26s; }
+
+    /* grid children may shrink below their content, so wide tables scroll inside .table-scroll instead of widening the page */
+    .hero__grid > *, .encoding-layout > *, .dispatch-layout > *, .replay > *, .city-layout > *, .hardware-layout > *, .robust > *, .claims-grid > *, .card-grid > *, .section-heading > * { min-width: 0; }
+    .bloch-wrap { overflow: hidden; }
+
+    @media (max-width: 860px) {
+      .wrap { width: min(calc(100% - 34px), var(--max)); }
+      .topbar__inner { min-height: 62px; }
+      .wordmark { font-size: .68rem; }
+      .topbar nav { gap: 14px; }
+      .topbar nav a { font-size: .58rem; }
+      .hero { min-height: auto; padding: 130px 0 80px; }
+      .hero__grid, .encoding-layout, .dispatch-layout, .city-layout, .hardware-layout, .robust, .replay { grid-template-columns: 1fr; }
+      .hero__grid { gap: 30px; }
+      .bloch-wrap { min-height: 380px; }
+      .section-heading { grid-template-columns: 1fr; gap: 18px; margin-bottom: 34px; }
+      .section { padding: 82px 0; }
+      .city-layout, .hardware-layout { gap: 28px; }
+      .city-layout > div:first-child p, .hardware-layout > div:first-child p, .robust p { max-width: 580px; }
+    }
+    @media (max-width: 620px) {
+      h1 { font-size: clamp(3.7rem, 17vw, 6rem); }
+      .lede { font-size: 1.05rem; }
+      .card-grid, .claims-grid { grid-template-columns: 1fr; }
+      .card { min-height: 175px; }
+      .equation-panel, .grid-panel, .result-panel, .sumo-panel, .claims-panel, .dispatch-panel, .dispatch-stat, .loop-panel, .replay__side { padding: 23px; }
+      .dmatrix { grid-template-columns: 52px repeat(4, minmax(0, 1fr)); gap: 4px; }
+      .dmatrix__c { font-size: .7rem; padding: 11px 2px; }
+      .grid-panel__top, .sumo-panel__head, .result-panel__intro { display: block; }
+      .legend { flex-direction: row; margin-top: 17px; }
+      .light { min-height: 66px; }
+      .light::before { width: 17px; height: 17px; }
+      .bar-row { grid-template-columns: 105px 1fr; gap: 9px 12px; }
+      .bar-value { grid-column: 2; text-align: left; margin-top: -5px; }
+      .loop-steps { grid-template-columns: 1fr 1fr; }
+      .loop-line { display: none; }
+      th, td { padding: 15px 14px; }
+      .table-panel table, table.hardware-table { min-width: 560px; }
+      .sumo-table { min-width: 620px; }
+      .sumo-panel .table-scroll { margin-inline: -23px; padding-inline: 23px; }
+      .robust-stat { padding: 28px 23px; }
+      .robust-numbers { gap: 11px; }
+      .robust-number { font-size: 3.2rem; }
+      .footer-top { display: block; padding-bottom: 45px; }
+      .footer-mark { display: block; margin-top: 30px; }
+      .footer-bottom { display: block; }
+      .footer-bottom span { display: block; margin-top: 8px; }
+      .axis-note { right: 0; max-width: 150px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+      .js .reveal { opacity: 1; transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap topbar__inner">
+      <a class="wordmark" href="#top" aria-label="Quantum Green Wave home"><span class="mark" aria-hidden="true"></span>QGW / 2026</a>
+      <nav aria-label="Primary navigation">
+        <a href="#problem">Problem</a>
+        <a href="#encoding">Encoding</a>
+        <a href="#qaoa">QAOA</a>
+        <a href="#results">Results</a>
+        <a href="#honest">Claims</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <canvas id="particles" aria-hidden="true"></canvas>
+      <div class="wrap hero__grid">
+        <div class="hero__copy reveal">
+          <div class="eyebrow">Team Voyager / Hackathon project / urban quantum systems</div>
+          <h1>Quantum<br><span style="color:var(--cyan)">Green</span> Wave</h1>
+          <p class="lede">Ambulance signal preemption as a 96-qubit QUBO, solved by QAOA in 12-qubit windows and checked in a traffic simulator.</p>
+          <div class="hero__tagline" aria-label="Project facts">
+            <span><em style="font-style:normal"><b data-q="n_qubits" style="font-weight:inherit">96</b> qubits</em></span>
+            <span><em style="font-style:normal"><b data-q="window_qubits" style="font-weight:inherit">12</b>-qubit windows</em></span>
+            <span>SUMO checked</span>
+          </div>
+        </div>
+        <div class="bloch-wrap reveal delay-2" aria-label="Bloch sphere showing the two traffic-light phases">
+          <svg class="bloch" viewBox="0 0 440 440" role="img" aria-labelledby="bloch-title bloch-desc">
+            <title id="bloch-title">Bloch sphere of one traffic-light qubit</title>
+            <desc id="bloch-desc">The north pole is |0⟩, north-south green; the south pole is |1⟩, east-west green. The orange state vector precesses about the Z axis.</desc>
+            <g class="sphere-orbit sphere-orbit--slow">
+              <ellipse class="sphere-line" cx="220" cy="220" rx="175" ry="72" transform="rotate(-18 220 220)"></ellipse>
+              <ellipse class="sphere-line" cx="220" cy="220" rx="175" ry="72" transform="rotate(47 220 220)"></ellipse>
+            </g>
+            <circle class="sphere-shell" cx="220" cy="220" r="137"></circle>
+            <ellipse class="sphere-line" cx="220" cy="220" rx="137" ry="38"></ellipse>
+            <ellipse class="sphere-line" cx="220" cy="220" rx="42" ry="137"></ellipse>
+            <ellipse id="latitude" class="sphere-line" cx="220" cy="220" rx="1" ry="1" style="stroke:var(--orange);stroke-opacity:.45"></ellipse>
+            <line class="sphere-axis" x1="77" y1="220" x2="363" y2="220"></line>
+            <line class="sphere-axis" x1="220" y1="76" x2="220" y2="365"></line>
+            <line id="stateVector" class="sphere-vector" x1="220" y1="220" x2="274" y2="107"></line>
+            <circle id="stateDot" class="sphere-dot" cx="274" cy="107" r="5"></circle>
+            <circle cx="220" cy="220" r="4" fill="var(--paper)"></circle>
+            <text x="220" y="62" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">Z</text>
+            <text x="370" y="216" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="11">X</text>
+            <text x="220" y="386" fill="var(--muted)" font-family="JetBrains Mono, monospace" font-size="11" text-anchor="middle">−Z</text>
+          </svg>
+          <span class="ket ket--zero">|0⟩</span>
+          <span class="ket ket--one">|1⟩</span>
+          <div class="axis-note"><strong>|0⟩ = north-south green</strong><br>|1⟩ = east-west green<br>x = 1 ↔ |1⟩</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight" id="problem">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">01 / Problem</div></div>
+          <h2>At a red light,<br>urgency is invisible.</h2>
+        </div>
+        <div class="callout reveal delay-1"><p><strong>An ambulance at a red light waits like everyone else.</strong> The city needs to coordinate every phase, route, and trade-off before the siren arrives.</p></div>
+        <div class="card-grid" style="margin-top:15px">
+          <article class="card reveal delay-1"><span class="card__index">01 / dispatch</span><h3>Who goes where</h3><p>Which ambulance should serve which incident, while keeping the assignment valid by construction?</p></article>
+          <article class="card reveal delay-2"><span class="card__index">02 / phase</span><h3>Which lights, when</h3><p>Which intersection phase should be green across six 15 s slots and the moving traffic platoons between them?</p></article>
+          <article class="card reveal delay-3"><span class="card__index">03 / trade-off</span><h3>At what cost</h3><p>How do queue delay, stops, switching, ambulance urgency, and fairness become one objective?</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="encoding">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">02 / Encoding</div></div>
+          <h2>Make the city<br>binary, not simple.</h2>
+        </div>
+        <div class="encoding-layout">
+          <div class="equation-panel reveal">
+            <div>
+              <div class="eyebrow">The variable</div>
+              <div class="equation">x(n,t) <span>=</span> 1<br><span>means</span> east-west green</div>
+              <p class="equation-note">A zero means north-south green. One variable per intersection and time slot turns the signal plan into a QUBO.</p>
+            </div>
+            <div class="fact-row"><span class="fact-number" data-q="n_qubits">96</span><span class="fact-label">qubits<br>16 intersections × 6 slots<br>of 15 s</span></div>
+          </div>
+          <div class="grid-panel reveal delay-1">
+            <div class="grid-panel__top">
+              <div><h3>The proved-optimal plan. Flip a light.</h3><p>City 1, one 15 s slot at a time. Each light is one qubit; the energy below is the model’s exact QUBO, so any flip moves it off the optimum.</p></div>
+              <div class="legend"><span><i class="is-zero"></i>|0⟩ north-south</span><span><i class="is-one"></i>|1⟩ east-west</span></div>
+            </div>
+            <div class="slot-bar" id="slotBar" role="group" aria-label="Time slot"></div>
+            <div class="light-grid" id="lightGrid" aria-label="4 by 4 grid of intersections for the selected slot"></div>
+            <noscript><p class="small">Turn on JavaScript to explore the plan.</p></noscript>
+            <div class="energy" aria-live="polite">
+              <div><div class="eyebrow" style="margin-bottom:8px">QUBO energy E(x)</div><div class="energy__value" id="energyValue" data-q="opt_cost">1593</div></div>
+              <div class="energy__note is-ground" id="energyNote">ground state: the proved optimum</div>
+              <button class="reset" id="resetPlan" type="button">reset to optimum</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight" id="hamiltonian">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">03 / Cost Hamiltonian</div></div>
+          <h2>Five pressures.<br>One objective.</h2>
+        </div>
+        <div class="term-table-wrap reveal">
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Term</th><th>What it protects</th><th>Expression</th></tr></thead>
+              <tbody>
+                <tr><td>Queue delay</td><td>Keep waiting cars from accumulating at the wrong phase.</td><td>q_ns·x + q_ew·(1−x)</td></tr>
+                <tr><td>Platoon stops</td><td>Keep a moving platoon from meeting a red at the next slot.</td><td>f·x(n,t)·(1−x(m,t+1))</td></tr>
+                <tr><td>Switching</td><td>Make phase changes carry an explicit cost.</td><td>s·(x_t + x_t+1 − 2·x_t·x_t+1)</td></tr>
+                <tr><td>Ambulance</td><td>Weight urgency and arrival uncertainty around the required axis.</td><td>W·severity·p(Δt)·[phase ≠ axis needed], spread over ±1 slot (0.2/0.6/0.2)</td></tr>
+                <tr><td>Fairness</td><td>Prevent one direction from owning every green slot.</td><td>μ·(Σ_t x − T/2)²</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mapping reveal delay-1"><b>x = (1−Z)/2</b><i>→</i><b>Ising Hamiltonian</b><i>→</i><b>RZ and RZZ gates</b></div>
+      </div>
+    </section>
+
+    <section class="section" id="qaoa">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">04 / Dispatch</div></div>
+          <h2>Constrain the<br>search by design.</h2>
+        </div>
+        <div class="dispatch-layout">
+          <div class="dispatch-panel reveal">
+            <h3>Dispatch with XY-mixer QAOA</h3>
+            <p>Dicke-state start + XY mixer <span class="mono" style="color:var(--cyan)">exp(−iβ(XX+YY)/2)</span> conserves Hamming weight, so each ambulance serves exactly one incident by construction.</p>
+            <div class="dmatrix" id="dispatchMatrix" role="img" aria-label="City 1 dispatch cost matrix: severity-weighted travel time for each ambulance and incident; the outlined cells are the optimal assignment"></div>
+            <p class="dmatrix-note" id="dispatchNote">City 1: severity-weighted travel time (in 15 s slots) for every ambulance–incident pair. The outlined |1⟩ cells are the optimal one-hot assignment.</p>
+          </div>
+          <div class="dispatch-stat reveal delay-1"><div><div class="eyebrow">Valid assignments</div><div class="dispatch-stat__big" data-q="disp_xy_feasible">40%</div><p>vs <span data-q="disp_x_feasible">4%</span> with penalties only, <span data-q="disp_ratio">9.5×</span> more</p></div><p class="small"><span data-q="disp_qubits">16</span> qubits, p=2, mean of <span data-q="disp_cities">5</span> cities<br>only <span data-q="disp_valid">24</span> of <span data-q="disp_states">65,536</span> states valid</p></div>
+        </div>
+
+        <div class="section-heading reveal" style="margin-top:110px">
+          <div><div class="eyebrow">05 / Hybrid loop</div></div>
+          <h2>Freeze the city.<br>Open a window.</h2>
+        </div>
+        <div class="loop-wrap reveal">
+          <div class="loop-panel">
+            <div class="loop-line" aria-hidden="true"></div>
+            <div class="loop-steps" id="loopSteps">
+              <article class="loop-step is-active"><span class="loop-step__number">01</span><h3>Freeze <span data-q="frozen">84</span> variables</h3><p>Hold the city plan still outside the active window.</p></article>
+              <article class="loop-step"><span class="loop-step__number">02</span><h3>QAOA on a <span data-q="window_qubits">12</span>-qubit window</h3><p>Explore <span data-q="window_plans">4096</span> plans where the city can still move.</p></article>
+              <article class="loop-step"><span class="loop-step__number">03</span><h3>Sample 256 shots</h3><p>Measure candidate plans from the quantum circuit.</p></article>
+              <article class="loop-step"><span class="loop-step__number">04</span><h3>Accept if cost does not rise</h3><p>Keep only a window that protects the city-wide objective.</p></article>
+            </div>
+            <div class="loop-foot"><span><strong data-q="n_windows">28</strong> windows</span><span><strong data-q="sweeps">3</strong> sweeps</span><span>hybrid, not hype</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight" id="results">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">06 / Window results</div></div>
+          <h2>Chance of measuring<br>the best plan.</h2>
+        </div>
+        <div class="result-panel reveal">
+          <div class="result-panel__intro"><div><h3>The window is small. The signal is not.</h3><p>Each bar is the chance of measuring the best plan in the window.</p></div><div class="best-note">ideal statevector<br>mean of <span data-q="win_count">10</span> windows</div></div>
+          <div class="bar-list">
+            <div class="bar-row"><div class="bar-label">blind guess</div><div class="bar-track"><div class="bar-fill" style="--bar:.027%"></div></div><div class="bar-value" data-q="win_blind">0.027%</div></div>
+            <div class="bar-row"><div class="bar-label">QAOA p=1</div><div class="bar-track"><div class="bar-fill" data-qbar="win_p1_bar" style="--bar:14.2%"></div></div><div class="bar-value"><span data-q="win_p1">14%</span> <span style="color:var(--cyan)">(<span data-q="win_p1_gain">×500</span>)</span></div></div>
+            <div class="bar-row"><div class="bar-label">QAOA p=2</div><div class="bar-track"><div class="bar-fill" data-qbar="win_p2_bar" style="--bar:31.6%"></div></div><div class="bar-value"><span data-q="win_p2">32%</span> <span style="color:var(--cyan)">(<span data-q="win_p2_gain">×1190</span>)</span></div></div>
+            <div class="bar-row"><div class="bar-label">QAOA p=3</div><div class="bar-track"><div class="bar-fill" data-qbar="win_p3_bar" style="--bar:39.7%"></div></div><div class="bar-value"><span data-q="win_p3">40%</span> <span style="color:var(--cyan)">(<span data-q="win_p3_gain">×1500</span>)</span></div></div>
+            <div class="bar-row"><div class="bar-label">warm-start p=2</div><div class="bar-track"><div class="bar-fill" data-qbar="win_warm2_bar" style="--bar:41.3%"></div></div><div class="bar-value"><span data-q="win_warm2">41%</span>*</div></div>
+            <div class="bar-row"><div class="bar-label">CVaR p=3</div><div class="bar-track"><div class="bar-fill" data-qbar="win_cvar3_bar" style="--bar:13.6%"></div></div><div class="bar-value"><span data-q="win_cvar3">14%</span> <span style="color:var(--cyan)">(<span data-q="win_cvar3_gain">×530</span>)</span></div></div>
+          </div>
+          <p class="small" style="margin:25px 0 0">Multipliers are against a blind guess in the same window (some windows have tied best plans, so a guess averages <span data-q="win_blind">0.027%</span>, not exactly 1 in 4096). Each depth starts from the previous depth’s angles. *Warm-start begins at the rule-based plan, already in the top <span data-q="win_start_rank">1.2%</span> of each window, so part of its lift is inherited. CVaR optimises the low-cost tail, not P(best).</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="city-layout">
+          <div class="reveal"><div class="eyebrow">07 / City-wide result</div><h2 style="margin-top:20px">The optimum<br>holds.</h2><p style="margin-top:25px">Every quantum variant reaches the proved optimum cost. Random sampling of the same windows stops short, so the circuits are doing the work.</p><div class="optimum"><strong data-q="opt_cost">1593</strong><span>proved optimum cost (HiGHS, <span data-q="milp_time">under a second</span>)</span></div></div>
+          <div class="table-panel reveal delay-1"><div class="table-scroll"><table><thead><tr><th>Variant</th><th>Cost</th></tr></thead><tbody>
+            <tr><td>QAOA windows</td><td data-q="cost_qaoa">1593</td></tr><tr><td>CVaR-QAOA windows</td><td data-q="cost_cvar">1593</td></tr><tr><td>warm-start windows</td><td data-q="cost_warm">1593</td></tr><tr><td>random sampling, same windows</td><td data-q="cost_random">1606–1627</td></tr><tr><td>rule-based preemption</td><td data-q="cost_rule">1734</td></tr><tr><td>queue-actuated</td><td data-q="cost_actuated">1679</td></tr><tr><td>fixed-time</td><td data-q="cost_fixed">2423</td></tr>
+          </tbody></table></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="hardware-layout">
+          <div class="reveal"><div class="eyebrow">08 / Hardware</div><h2 style="margin-top:20px">The circuit<br>has a cost.</h2><p style="margin-top:25px">One 12-qubit window, transpiled for IBM Sherbrooke (127-qubit heavy-hex) and simulated with its calibrated noise model. More depth gives a stronger ideal signal and a harder noisy run. Real-hardware runs have not been done yet.</p><span class="badge">IBM Sherbrooke / heavy-hex</span></div>
+          <div class="hardware-panel reveal delay-1"><div class="table-scroll"><table class="hardware-table"><thead><tr><th>Depth</th><th>Two-qubit gates</th><th>Ideal P(best)</th><th>Noisy P(best), simulated</th></tr></thead><tbody>
+            <tr><td>p=1</td><td data-q="hw_p1_gates">173</td><td data-q="hw_p1_ideal">9.3%</td><td data-q="hw_p1_noisy">3.1%</td></tr><tr><td>p=2</td><td data-q="hw_p2_gates">371</td><td data-q="hw_p2_ideal">26.5%</td><td><span data-q="hw_p2_noisy">2.2%</span> (<span data-q="hw_p2_ratio">≈90× blind guess</span>)</td></tr><tr><td>p=3</td><td data-q="hw_p3_gates">581</td><td data-q="hw_p3_ideal">38.4%</td><td data-q="hw_p3_noisy">not run noisy</td></tr>
+          </tbody></table></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="simulator">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">09 / SUMO check</div></div>
+          <h2>Optimise the wave.<br>Watch the street.</h2>
+        </div>
+        <div class="replay reveal" id="replay">
+          <div class="replay__map"><svg id="replayMap" viewBox="0 0 750 750" role="img" aria-label="SUMO replay of a 4 by 4 grid: vehicles, ambulance routes and the signal phase at every intersection"></svg></div>
+          <div class="replay__side">
+            <div><div class="eyebrow" style="margin-bottom:10px">SUMO replay</div><h3>Same city, same ambulances, two plans</h3></div>
+            <p>Every dot is a vehicle moving in the SUMO simulation under the selected plan; each cross shows which axis is green. One simulator seed per city, so the times differ slightly from the three-seed means in the table below.</p>
+            <div class="seg" id="replayCity" role="group" aria-label="City"></div>
+            <div class="seg" id="replayPlan" role="group" aria-label="Signal plan"><button type="button" data-plan="fixed-time" aria-pressed="false">Fixed-time</button><button type="button" data-plan="optimised" aria-pressed="true">Optimised (QUBO)</button></div>
+            <div class="replay__ctrl"><button class="play-btn" id="replayPlay" type="button">Play</button><input type="range" id="replayScrub" min="0" max="115" step="0.1" value="0" aria-label="Simulation time"><span class="replay__clock" id="replayClock">0 s</span></div>
+            <div class="kpis" id="replayKpis" aria-live="polite"></div>
+            <div class="replay-legend"><span><i style="background:var(--orange)"></i>ambulance</span><span><i style="background:var(--muted)"></i>car</span><span><i style="background:var(--green);border-radius:2px"></i>green axis</span><span><i style="background:none;border:2px solid var(--orange)"></i>incident</span></div>
+            <noscript><p>Turn on JavaScript to play the simulation.</p></noscript>
+          </div>
+        </div>
+        <div class="sumo-panel reveal">
+          <div class="sumo-panel__head"><div><h3>Traffic simulator check</h3><p>Severity-weighted mean ambulance time, and the mean wait of every other car.</p></div><div class="mono" style="color:var(--orange);font-size:.7rem">SUMO / synthetic city</div></div>
+          <div class="table-scroll"><table class="sumo-table"><thead><tr><th>City</th><th>Ambulance / optimised vs rule-based</th><th>Outcome</th><th>Other cars / optimised vs rule-based</th></tr></thead><tbody>
+            <tr data-city="1"><td>City 1</td><td><span data-q="sumo1_amb_opt">51.9</span> vs <span data-q="sumo1_amb_rule">41.7</span> s</td><td data-q="sumo1_outcome" class="outcome-loss">loss</td><td><span data-q="sumo1_civ_opt">34.8</span> vs <span data-q="sumo1_civ_rule">41.2</span> s</td></tr><tr data-city="2"><td>City 2</td><td><span data-q="sumo2_amb_opt">22.2</span> vs <span data-q="sumo2_amb_rule">26.3</span> s</td><td data-q="sumo2_outcome" class="outcome-win">win</td><td><span data-q="sumo2_civ_opt">39.1</span> vs <span data-q="sumo2_civ_rule">49.1</span> s</td></tr><tr data-city="3"><td>City 3</td><td><span data-q="sumo3_amb_opt">18.5</span> vs <span data-q="sumo3_amb_rule">18.5</span> s</td><td data-q="sumo3_outcome" class="outcome-tie">tie</td><td><span data-q="sumo3_civ_opt">36.0</span> vs <span data-q="sumo3_civ_rule">39.1</span> s</td></tr>
+          </tbody></table></div>
+          <p class="sumo-caption">Ambulances <span data-q="sumo_summary">1 win, 1 tie, 1 loss</span>; everyone else waits less <b data-q="sumo_civ" style="font-weight:inherit">in all three</b>. Every plan is simulated for the same 160 s, three seeds per city.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="robust">
+          <div class="reveal"><div class="eyebrow">10 / Robustness</div><h2 style="margin-top:20px">Plan for the<br>arrival spread.</h2><p style="margin-top:25px">Planning for ±1 slot arrival spread makes the green wave less brittle.</p></div>
+          <div class="robust-stat reveal delay-1"><div class="robust-numbers"><div class="robust-number"><span data-q="rob_point">1.35</span><small>plan for the expected slot</small></div><div class="robust-arrow">→</div><div class="robust-number"><span data-q="rob_robust">0.58</span><small>plan for a ±1 slot spread</small></div></div><span class="drop"><span data-q="rob_drop">−57%</span> severity-weighted missed greens, <span data-q="rob_cities">6</span> cities × 1000 sampled arrivals (model only)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="honest">
+      <div class="wrap">
+        <div class="section-heading reveal">
+          <div><div class="eyebrow">11 / Honest claims</div></div>
+          <h2>Show the work.<br>Keep the boundary.</h2>
+        </div>
+        <div class="claims-grid">
+          <article class="claims-panel reveal"><h3>Shown</h3><p>Correct QUBO tested against direct cost; XY mixer <span data-q="disp_ratio">9.5×</span> more valid dispatches; hybrid loop reaches proved optimum; IBM gate counts and noisy runs; simulator check including losses.</p></article>
+          <article class="claims-panel claims-panel--not reveal delay-1"><h3>Not claimed</h3><p>Quantum advantage, since a classical solver does this size in <span data-q="milp_time">under a second</span>; real-hardware runs; real streets, since the city is synthetic; closed-loop control.</p></article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <div class="footer-top"><h2>Every light a qubit.<br>Every ambulance a <span style="color:var(--cyan)">green wave.</span></h2><span class="footer-mark">Team Voyager</span></div>
+      <div class="footer-bottom"><span>Quantum Green Wave / signal preemption as optimisation</span><span class="mono">Every number on this page is generated from the model’s results by <code>python -m qgw.export</code></span></div>
+    </div>
+  </footer>
+
+  <script src="site-data.js"></script>
+  <script>
+    // Lightweight reveal behavior keeps the page legible even when motion is reduced.
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const revealItems = document.querySelectorAll('.reveal');
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      revealItems.forEach(item => item.classList.add('is-visible'));
+    } else {
+      const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            obs.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.14 });
+      revealItems.forEach(item => observer.observe(item));
+    }
+
+    // ---------------------------------------------------------------- numbers from the model
+    const D = window.QGW_SITE;
+    if (D) {
+      document.querySelectorAll('[data-q]').forEach(el => {
+        const v = D.text[el.dataset.q];
+        if (v == null) return;
+        el.textContent = v;
+        if (el.dataset.q.endsWith('_outcome')) el.className = 'outcome-' + v;
+      });
+      const nCities = +(D.text.sumo_cities || 0);   // hide SUMO rows for cities that are not in the results
+      document.querySelectorAll('tr[data-city]').forEach(tr => { tr.hidden = +tr.dataset.city > nCities; });
+      document.querySelectorAll('[data-qbar]').forEach(el => {
+        const v = D.text[el.dataset.qbar];
+        if (v != null) el.style.setProperty('--bar', v);
+      });
+    }
+
+    // ---------------------------------------------------------------- the real plan and its exact QUBO energy
+    if (D && D.grid) {
+      const G = D.grid, x = G.plan.slice(), gridEl = document.getElementById('lightGrid'), slotBar = document.getElementById('slotBar');
+      const energy = () => {
+        let e = G.const;
+        for (let i = 0; i < x.length; i++) if (x[i]) e += G.lin[i];
+        for (const [i, j, w] of G.pairs) if (x[i] && x[j]) e += w;
+        return e;
+      };
+      let slot = 0;
+      for (let t = 0; t < G.T; t++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = (t * G.slot_s) + '–' + ((t + 1) * G.slot_s) + ' s';
+        b.setAttribute('aria-pressed', String(t === 0));
+        b.addEventListener('click', () => { slot = t; [...slotBar.children].forEach((c, k) => c.setAttribute('aria-pressed', String(k === t))); render(); });
+        slotBar.appendChild(b);
+      }
+      const render = () => {
+        gridEl.innerHTML = '';
+        for (let y = G.ny - 1; y >= 0; y--) for (let col = 0; col < G.nx; col++) {
+          const n = y * G.nx + col, v = n * G.T + slot, st = x[v];
+          const req = (G.requests[n + ',' + slot] || []);
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'light' + (req.length ? ' has-request' : '');
+          b.dataset.state = String(st);
+          b.setAttribute('aria-pressed', String(st === 1));
+          let hint = 'click to flip', cls = '';
+          if (req.length) {
+            const met = req.every(([axis]) => (axis === 'ew') === (st === 1));
+            hint = 'ambulance needs ' + req.map(([axis]) => axis.toUpperCase()).join('+');
+            cls = met ? 'is-met' : 'is-missed';
+          }
+          b.setAttribute('aria-label', G.names[n] + ', ' + (st ? 'east-west' : 'north-south') + ' green' + (req.length ? ', ' + hint : ''));
+          b.innerHTML = '<span class="light__name">' + G.names[n] + '</span><span class="light__ket">|' + st + '⟩</span><span class="light__hint ' + cls + '">' + hint + '</span>';
+          b.addEventListener('click', () => { x[v] = 1 - x[v]; render(); });   // buttons already handle Enter and Space
+          gridEl.appendChild(b);
+        }
+        const e = energy(), d = e - G.optimum;
+        document.getElementById('energyValue').textContent = Math.round(e).toLocaleString('en-US');
+        const note = document.getElementById('energyNote');
+        note.textContent = Math.abs(d) < 1e-6 ? 'ground state: the proved optimum' : '+' + Math.round(d).toLocaleString('en-US') + ' above the proved optimum';
+        note.classList.toggle('is-ground', Math.abs(d) < 1e-6);
+      };
+      document.getElementById('resetPlan').addEventListener('click', () => { G.plan.forEach((v, i) => { x[i] = v; }); render(); });
+      render();
+    }
+
+    // ---------------------------------------------------------------- dispatch matrix (City 1)
+    if (D && D.dispatch) {
+      const M = D.dispatch, el = document.getElementById('dispatchMatrix'), A = M.cost.length;
+      const mx = Math.max(...M.cost.flat());
+      let h = '<div></div>';
+      for (let i = 0; i < A; i++) h += '<div class="dmatrix__h">I' + (i + 1) + '<br>sev ' + M.severity[i] + '</div>';
+      for (let a = 0; a < A; a++) {
+        h += '<div class="dmatrix__r">amb ' + (a + 1) + '</div>';
+        for (let i = 0; i < A; i++) {
+          const v = M.cost[a][i], opt = M.opt_perm[a] === i;
+          h += '<div class="dmatrix__c' + (opt ? ' is-opt' : '') + '" style="--a:' + (0.04 + 0.32 * (1 - v / mx)).toFixed(3) + '">' + v.toFixed(1) + '</div>';
+        }
+      }
+      el.innerHTML = h;
+      const same = Math.abs(M.opt_cost - M.greedy_cost) < 1e-6;
+      document.getElementById('dispatchNote').textContent = 'City 1: severity-weighted travel time (in 15 s slots) for every ambulance–incident pair. The outlined |1⟩ cells are the optimal one-hot assignment, total ' +
+        M.opt_cost.toFixed(1) + (same ? '; on this draw the nearest-ambulance rule finds the same one, which is why the multi-city numbers on the right matter more.' : '; the nearest-ambulance rule costs ' + M.greedy_cost.toFixed(1) + '.');
+    }
+
+    // ---------------------------------------------------------------- SUMO street replay
+    if (D && D.replay && D.replay.cities.length) {
+      const R = D.replay, svg = document.getElementById('replayMap'), NSs = 'http://www.w3.org/2000/svg';
+      const G = D.grid, slotS = G.slot_s, T = G.T, nx = G.nx, ny = G.ny, TMAX = T * slotS + 25;
+      const P = (x, y) => [150 + 150 * x, 750 - (150 + 150 * y)];
+      let city = 0, plan = 'optimised', t = 28, playing = false, last = 0;
+      const scrub = document.getElementById('replayScrub'), clock = document.getElementById('replayClock'), playBtn = document.getElementById('replayPlay');
+      scrub.max = TMAX;
+      const sample = (tr, tt) => {                       // tr = [amb, t0, n, x0, y0, ...]; sample k is at min(k*dt, n-1)
+        const i = tt - tr[1], n = tr[2];
+        if (i < 0 || i > n - 1) return null;
+        const m = (tr.length - 3) / 2, k = Math.min(Math.floor(i / R.dt), m - 1), k2 = Math.min(k + 1, m - 1);
+        const ta = Math.min(k * R.dt, n - 1), tb = Math.min(k2 * R.dt, n - 1), f = tb > ta ? (i - ta) / (tb - ta) : 0;
+        const x = tr[3 + 2 * k] + (tr[3 + 2 * k2] - tr[3 + 2 * k]) * f, y = tr[4 + 2 * k] + (tr[4 + 2 * k2] - tr[4 + 2 * k]) * f;
+        return [x, 750 - y];
+      };
+      const drawStatic = () => {
+        const C = R.cities[city]; let s = '';
+        for (let y = 0; y < ny; y++) { const py = P(0, y)[1]; s += '<line x1="0" x2="750" y1="' + py + '" y2="' + py + '" stroke="#1A2238" stroke-width="18"/>'; }
+        for (let x = 0; x < nx; x++) { const px = P(x, 0)[0]; s += '<line y1="0" y2="750" x1="' + px + '" x2="' + px + '" stroke="#1A2238" stroke-width="18"/>'; }
+        C.routes.forEach((r, i) => {
+          s += '<polyline points="' + r.path.map(p => P(p[0], p[1]).join(',')).join(' ') + '" fill="none" stroke="#FF9150" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round" opacity=".8"/>';
+          const [sx, sy] = P(...r.station), [ix, iy] = P(...r.incident);
+          s += '<rect x="' + (sx - 13) + '" y="' + (sy - 40) + '" width="26" height="18" rx="3" fill="#FF9150"/><text x="' + sx + '" y="' + (sy - 26.5) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="12" font-weight="600" fill="#0A0D18">S' + (i + 1) + '</text>';
+          s += '<circle cx="' + ix + '" cy="' + iy + '" r="28" fill="none" stroke="#FF9150" stroke-width="2.5"/><text x="' + (ix + 33) + '" y="' + (iy + 4) + '" font-family="JetBrains Mono, monospace" font-size="12" fill="#A9B3C7">I' + (i + 1) + ' ×' + r.severity + '</text>';
+        });
+        svg.innerHTML = s + '<g id="rpSig"></g><g id="rpVeh"></g>';
+      };
+      const frame = () => {
+        const C = R.cities[city], run = C.runs[plan], X = C.plans[plan], k = Math.floor(t / slotS), after = k >= T;
+        let s = '';
+        for (let y = 0; y < ny; y++) for (let x = 0; x < nx; x++) {
+          const [cx, cy] = P(x, y), ew = !after && X[y * nx + x][k] === 1;
+          const cEW = after ? '#4A5470' : ew ? '#8BE3B2' : '#FF6A7A', cNS = after ? '#4A5470' : ew ? '#FF6A7A' : '#8BE3B2';
+          s += '<rect x="' + (cx - 14) + '" y="' + (cy - 14) + '" width="28" height="28" rx="4" fill="#0F1426" stroke="#26304A"/>' +
+               '<rect x="' + (cx - 11) + '" y="' + (cy - 2.5) + '" width="22" height="5" rx="2" fill="' + cEW + '"/><rect x="' + (cx - 2.5) + '" y="' + (cy - 11) + '" width="5" height="22" rx="2" fill="' + cNS + '"/>';
+        }
+        document.getElementById('rpSig').innerHTML = s;
+        let civ = '', amb = '';
+        for (const tr of run.tracks) {
+          const q = sample(tr, t);
+          if (!q) continue;
+          if (tr[0]) amb += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="15" fill="#FF9150" opacity=".22"/><circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="7" fill="#FF9150"/>';
+          else civ += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) + '" r="3.2"/>';
+        }
+        document.getElementById('rpVeh').innerHTML = '<g fill="#7E89A3">' + civ + '</g>' + amb;
+        const times = run.amb_times, w = C.routes.map(r => r.severity), sw = w.reduce((a, b) => a + b, 0);
+        const wm = times.reduce((a, v, i) => a + v * w[i], 0) / sw, arrived = times.filter(v => v <= t).length;
+        document.getElementById('replayKpis').innerHTML = [[arrived + ' / ' + times.length, 'ambulances arrived'], [Math.max(...times) + ' s', 'slowest ambulance'],
+          [wm.toFixed(1) + ' s', 'severity-weighted mean'], [run.civ_wait.toFixed(1) + ' s', 'mean wait, other cars']]
+          .map(([b, l]) => '<div class="kpi"><b>' + b + '</b><span>' + l + '</span></div>').join('');
+        clock.textContent = Math.round(t) + ' s' + (after ? ' · default program' : ' · slot ' + (k + 1));
+        scrub.value = t;
+      };
+      const cityBar = document.getElementById('replayCity');
+      R.cities.forEach((c, i) => {
+        const b = document.createElement('button'); b.type = 'button'; b.textContent = 'City ' + (i + 1); b.setAttribute('aria-pressed', String(i === 0));
+        b.addEventListener('click', () => { city = i; [...cityBar.children].forEach((c2, k) => c2.setAttribute('aria-pressed', String(k === i))); drawStatic(); frame(); });
+        cityBar.appendChild(b);
+      });
+      const planBar = document.getElementById('replayPlan');
+      planBar.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        plan = b.dataset.plan; planBar.querySelectorAll('button').forEach(c => c.setAttribute('aria-pressed', String(c === b))); frame();
+      }));
+      scrub.addEventListener('input', () => { t = +scrub.value; frame(); });
+      let raf = 0;                                       // one animation loop at a time, even on fast Pause/Play
+      const tick = now => {
+        raf = 0;
+        if (!playing) return;
+        t = Math.min(TMAX, t + (now - last) / 1000 * 3); last = now; frame();
+        if (t >= TMAX) { playing = false; playBtn.textContent = 'Replay'; return; }
+        raf = requestAnimationFrame(tick);
+      };
+      playBtn.addEventListener('click', () => {
+        playing = !playing; playBtn.textContent = playing ? 'Pause' : 'Play';
+        if (raf) { cancelAnimationFrame(raf); raf = 0; }
+        if (playing) { if (t >= TMAX) t = 0; last = performance.now(); raf = requestAnimationFrame(tick); }
+      });
+      drawStatic(); frame();
+    }
+
+    // ---------------------------------------------------------------- Bloch vector: precession about Z
+    (() => {
+      const cx = 220, cy = 220, R = 137, k = 38 / 137, c = Math.sqrt(1 - k * k), theta = 0.95;
+      const lat = document.getElementById('latitude'), vec = document.getElementById('stateVector'), dot = document.getElementById('stateDot');
+      if (!lat) return;
+      lat.setAttribute('cy', cy - R * Math.cos(theta) * c);
+      lat.setAttribute('rx', R * Math.sin(theta));
+      lat.setAttribute('ry', R * Math.sin(theta) * k);
+      const place = phi => {
+        const px = cx + R * Math.sin(theta) * Math.cos(phi);
+        const py = cy - R * Math.cos(theta) * c + R * Math.sin(theta) * k * Math.sin(phi);
+        vec.setAttribute('x2', px); vec.setAttribute('y2', py); dot.setAttribute('cx', px); dot.setAttribute('cy', py);
+      };
+      place(0.6);
+      if (!reduceMotion) {
+        const step = now => { place(0.6 + now * 0.0006); requestAnimationFrame(step); };
+        requestAnimationFrame(step);
+      }
+    })();
+
+    // The four-step loop gently advances to show the hybrid cadence.
+    const loopSteps = [...document.querySelectorAll('.loop-step')];
+    let loopIndex = 0;
+    if (!reduceMotion) {
+      window.setInterval(() => {
+        loopIndex = (loopIndex + 1) % loopSteps.length;
+        loopSteps.forEach((step, index) => step.classList.toggle('is-active', index === loopIndex));
+      }, 2200);
+    }
+
+    // Small deterministic particle field: visual texture only, not project data.
+    const canvas = document.getElementById('particles');
+    const context = canvas.getContext('2d');
+    const particles = Array.from({ length: 72 }, (_, index) => ({
+      x: (index * 83) % 1000,
+      y: (index * 47) % 700,
+      r: index % 9 === 0 ? 1.4 : .65,
+      phase: index * .73
+    }));
+    let width = 0;
+    let height = 0;
+    const resizeCanvas = () => {
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      width = canvas.clientWidth;
+      height = canvas.clientHeight;
+      canvas.width = width * ratio;
+      canvas.height = height * ratio;
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    };
+    const drawParticles = (time = 0) => {
+      context.clearRect(0, 0, width, height);
+      particles.forEach((particle, index) => {
+        const x = (particle.x / 1000) * width + Math.sin(time * .00018 + particle.phase) * 8;
+        const y = (particle.y / 700) * height + Math.cos(time * .00013 + particle.phase) * 6;
+        context.beginPath();
+        context.arc(x, y, particle.r, 0, Math.PI * 2);
+        context.fillStyle = index % 7 === 0 ? 'rgba(255,145,80,.48)' : 'rgba(108,203,255,.42)';
+        context.fill();
+      });
+      if (!reduceMotion && heroVisible) window.requestAnimationFrame(drawParticles);
+    };
+    let heroVisible = true;
+    resizeCanvas();
+    window.addEventListener('resize', () => { resizeCanvas(); if (reduceMotion) drawParticles(); }, { passive: true });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([entry]) => {
+        const was = heroVisible;
+        heroVisible = entry.isIntersecting;
+        if (heroVisible && !was && !reduceMotion) window.requestAnimationFrame(drawParticles);
+      }).observe(canvas);
+    }
+    drawParticles();
+  </script>
+</body>
+</html>

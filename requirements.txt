@@ -1,0 +1,12 @@
+# Tested with: qiskit 2.6.1, qiskit-aer 0.18.0, qiskit-ibm-runtime 0.51.0, qiskit-optimization 0.7.0,
+# numpy 2.5.3, scipy 1.18.1, eclipse-sumo / traci / sumolib 1.28.0, pytest 9.1.1 (Python 3.13).
+qiskit>=2.0,<3
+qiskit-aer>=0.15
+qiskit-ibm-runtime>=0.30
+qiskit-optimization>=0.6
+numpy>=1.26,<3
+scipy>=1.11
+eclipse-sumo>=1.20
+traci>=1.20
+sumolib>=1.20
+pytest>=8
